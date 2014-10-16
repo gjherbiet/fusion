@@ -1,0 +1,184 @@
+#!/bin/bash
+##############################################################################
+# File   : fusion
+# Author : Guillaume-Jean Herbiet  <guillaume-jean@herbiet.net>
+#
+#
+# Copyright (c) 2012 Guillaume-Jean Herbiet     (http://herbiet.net)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Guillaume-Jean Herbiet
+# <guillaume-jean@herbiet.net>
+#
+##############################################################################
+
+VERSION="0.1"
+function version {
+	echo "This is $(basename $0) v. $VERSION"
+	echo "Copyright (c) 2012 Guillaume-Jean Herbiet  (http://herbiet.net)"
+	echo "This is free software; see the source for copying conditions. There is NO"
+	echo "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+}
+
+#
+# Output functions
+#
+function ohai {
+	echo -e "\033[1;34m==> \033[0m"$@
+}
+function oops {
+	echo -e "\033[0;33m/!\ \033[0m"$@
+}
+function onoe {
+	echo -e "\033[1;31m!!! \033[0m"$@
+}
+#
+# Script parameters
+#
+VERBOSE=
+DEBUG=
+DRY_RUN=
+
+LOCATION="$HOME/Documents/Virtual Machines.localized"
+FUSION_CMD="/Applications/VMware Fusion.app/Contents/Library/vmrun"
+GUI="nogui"
+
+#
+# Check that required elements are in the path
+#
+GETOPT_CMD=$(which getopt)
+GREP_CMD=$(which grep)
+if [[ ! $GETOPT_CMD || ! $GREP_CMD ]]; then
+	onoe "This program requires 'getopt' and 'grep' utilities to be in your path."
+	exit 1
+fi
+
+#
+# Setup the required tools
+#
+GETOPT_VERSION=$($GETOPT_CMD -V | $GREP_CMD "enhanced")
+
+#
+# Usage
+#
+function usage {
+	cat<<EOF
+$(basename $0) [-h|--help] [-V|--version] [-D|--debug] [-v|--verbose] [-N|--dry-run]
+    [-l|--location] [-c|--command] [-g|--gui] VM_NAME
+
+  Launches VM_NAME in VMWare Fusion in headless mode from the command line.
+
+  Note: If your system has the non-enhanced version of 'getopt' (which is the
+  case by default on BSD systems, including Mac OS), only the short version
+  of the following options are available.
+
+    --help, -h       : Print this help, then exit.
+    --version, -V    : Print the software version, then exit.
+    --debug, -D      : Extended information about the script function.
+    --verbose, -v    : Display a summary of the executed operations.
+    --dry-run, -N    : Do not perform any actual action
+
+    --location, -l   : Virtual machine location
+                       (default: /Users/<USERNAME>/Documents/Virtual Machines.localized)
+    --command, -c    : Command used to launch the virtual machine
+                       (default: /Applications/VMware Fusion.app/Contents/Library/vmrun -T fusion start)
+    -gui, -g         : Use user interface (i.e. not headless mode)
+
+EOF
+}
+
+if [ "$GETOPT_VERSION" == "enhanced" ]; then
+	args=`$GETOPT_CMD -u -o hDvVNl:c:g -l help,debug,verbose,version,dry-run,location:,command:,gui -- $*`
+else
+	args=`$GETOPT_CMD hDvVNl:c:g $*`
+fi
+
+#
+# Parse arguments
+#
+set -- $args
+while true; do
+	case "$1"
+	in
+		-h|--help)
+			usage
+			exit 0
+			;;
+		-D|--debug)
+			echo "Debug mode ON"
+			DEBUG=1
+			VERBOSE=1
+			shift
+			;;
+		-v|--verbose)
+			if [ ! $VERBOSE ]; then
+				echo "Verbose mode ON"
+				VERBOSE=1
+			fi
+			shift
+			;;
+		-V|--version)
+			version
+			exit 0
+			;;
+		-N|--dry-run)
+			echo "Dry run mode ON"
+			DEBUG=1
+			VERBOSE=1
+			DRY_RUN=1
+			shift
+			;;
+		-l|--location)
+			if [ $DEBUG ]; then
+				echo "Location set to $2"
+			fi
+			LOCATION="$2"
+			shift
+			;;
+		-c|--command)
+			if [ $DEBUG ]; then
+				echo "Command set to $2"
+			fi
+			FUSION_CMD="$2"
+			shift
+			;;
+		-g|--gui)
+			if [ $DEBUG ]; then
+				echo "GUI MODE ON"
+			fi
+			GUI=""
+			shift
+			;;
+		--)
+			shift; break
+			;;
+		*)
+			onoe "Internal error!"
+			exit 2
+			;;
+	esac
+done
+
+if [ ! -z $1 ]; then
+	VM_NAME=$1
+else
+	onoe "No VM_NAME to start was provided."
+	usage
+	exit 3;
+fi
+
+[ $VERBOSE ] && ohai "Starting $VM_NAME"
+[ $DEBUG ] && echo "$FUSION_CMD" -T fusion start "$LOCATION/$VM_NAME.vmwarevm/$VM_NAME.vmx" "$GUI"
+[ ! $DRY_RUN ] && "$FUSION_CMD" -T fusion start "$LOCATION/$VM_NAME.vmwarevm/$VM_NAME.vmx" "$GUI"
